@@ -67,6 +67,13 @@ Same thing without `ANTHROPIC_BASE_URL`, so `/remote-control`, claude.ai
 connectors, and first-party gates keep working. Full instructions in the
 dashboard.
 
+Claude Code 2.1.281 and later keep conversation history server-side when they
+talk to api.anthropic.com, sending only the new turn on each request. That
+leaves pxpipe nothing to compress (#320). Warp therefore starts the agent with
+`CLAUDE_CODE_TETHER_LIVE=0`, so Claude Code sends full requests just as it does
+under a base URL. To keep server-side threads, set `CLAUDE_CODE_TETHER_LIVE=1`
+before running warp.
+
 `api.anthropic.com/v1/messages` is routed by default. Agents that reach their
 provider over some other base URL need a rule for it, and a rule that names a
 port matches only that port:

@@ -21,6 +21,7 @@ import { join } from 'node:path';
 
 import { CertificateAuthority } from './ca.js';
 import { createWarpHandlers } from './connect.js';
+import { warpChildEnv } from './env.js';
 import { isRunnable } from './resolve.js';
 import { parseRoute, routeDestination, type Route } from './route.js';
 
@@ -156,31 +157,7 @@ export function createWarpRuntime(options: WarpRuntimeOptions): WarpRuntime {
   };
 
   const spawnChild = (command: string[], proxyUrl: string): void => {
-    const env = { ...process.env };
-    // The agent must believe it is talking to api.anthropic.com. Both of these
-    // would defeat that, and either may be left over in the user's shell from a
-    // previous non-warp session.
-    delete env.ANTHROPIC_BASE_URL;
-    delete env.ANTHROPIC_UNIX_SOCKET;
-    env.HTTP_PROXY = proxyUrl;
-    env.http_proxy = proxyUrl;
-    env.HTTPS_PROXY = proxyUrl;
-    env.https_proxy = proxyUrl;
-    // Trust is scoped to this child; nothing is added to the system keychain.
-    // Which variable actually works depends on the agent's runtime, and the
-    // answer is not stable: the macOS `claude` is a native Mach-O binary, not a
-    // Node script, so the Node-only variable alone would silently fail to make
-    // it trust us. Set every convention — they are inert for runtimes that
-    // ignore them, and one of them is the one that counts.
-    // NODE_EXTRA_CA_CERTS appends to Node's built-in roots, so the CA-only
-    // file is right there. The other three REPLACE the trust store: handing
-    // them a 1-cert file strips the public roots from every other HTTPS client
-    // in the session (gcloud, gws, pip all fail verification — #245). They get
-    // the bundle: our CA followed by the system roots.
-    env.NODE_EXTRA_CA_CERTS = ca.bundlePath; // Node, and Bun-compiled binaries
-    env.SSL_CERT_FILE = ca.bundlePath; // OpenSSL: curl, Rust, Go with cgo
-    env.CURL_CA_BUNDLE = ca.bundlePath; // libcurl
-    env.REQUESTS_CA_BUNDLE = ca.bundlePath; // Python requests / httpx
+    const env = warpChildEnv(process.env, proxyUrl, ca.bundlePath);
 
     const child = spawnResolved(command, env);
     // The child's proxy and CA point at this process. If warp dies for any
